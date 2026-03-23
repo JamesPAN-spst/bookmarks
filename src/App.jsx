@@ -79,6 +79,7 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | pushing | pulling | success | error
   const [showTokenSetup, setShowTokenSetup] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
+  const [gistIdInput, setGistIdInput] = useState(''); 
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -121,6 +122,19 @@ export default function App() {
   const handleThemeLeave = () => { if(isMobile) return; timers.current.theme = setTimeout(() => setThemeOpen(false), 250); };
   const handleDataEnter = () => { if(isMobile) return; clearTimeout(timers.current.data); setDataOpen(true); setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); };
   const handleDataLeave = () => { if(isMobile) return; timers.current.data = setTimeout(() => setDataOpen(false), 250); };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Gist ID 已复制，可通过微信发给手机粘贴');
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); alert('Gist ID 已复制，可通过微信发给手机粘贴'); }
+      catch (e) { alert('复制失败，请手动复制: ' + text); }
+      document.body.removeChild(ta);
+    }
+  };
 
   const cycleMobileTheme = () => {
     setThemeId(prev => {
@@ -173,9 +187,11 @@ export default function App() {
     input.click(); setDataOpen(false); setCapsuleExpanded(false);
   };
 
-  const saveToken = (token) => {
+  const saveToken = (token, id) => {
     setGistToken(token); localStorage.setItem('cyberspace_gist_token', token);
-    setShowTokenSetup(false); setTokenInput('');
+    if (id) { setGistId(id); localStorage.setItem('cyberspace_gist_id', id); } 
+    else { setGistId(''); localStorage.removeItem('cyberspace_gist_id'); }
+    setShowTokenSetup(false); setTokenInput(''); setGistIdInput('');
   };
   const clearToken = () => {
     setGistToken(''); setGistId('');
@@ -266,10 +282,12 @@ export default function App() {
         
         {isMobile ? (
           <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center w-full" style={getGlassStyle(currentTheme)}>
-            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} expanded={true} onClick={() => setConsoleOpen(o => !o)} />
-            <div className="w-px h-5 bg-black/10 mx-1" />
+            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} expanded={true} onClick={() => { setConsoleOpen(o => !o); setDataOpen(false); }} />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
+            <CapsuleBtn icon={<Cloud size={18}/>} text="云" active={dataOpen} expanded={true} onClick={() => { setDataOpen(o => !o); setConsoleOpen(false); }} />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Palette size={18}/>} text="外观" expanded={true} onClick={cycleMobileTheme} />
-            <div className="w-px h-5 bg-black/10 mx-1" />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary expanded={true} onClick={addFolder} />
           </div>
         ) : (
@@ -281,7 +299,7 @@ export default function App() {
             <CapsuleBtn icon={<LayoutGrid size={18}/>} text="工作区" active={viewMode === 'dynamic'} onClick={() => setViewMode('dynamic')} onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} expanded={capsuleExpanded} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Palette size={18}/>} text="外观" active={themeOpen} onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} expanded={capsuleExpanded} />
-            <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} onClick={() => setDataOpen(o => !o)} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary onClick={addFolder} expanded={capsuleExpanded} />
           </div>
@@ -341,50 +359,66 @@ export default function App() {
                 ))}
               </div>
             </div>
-
-            <div onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dataOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-              <div className="border border-black/5 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700 overflow-hidden" style={getGlassStyle(currentTheme)}>
-                {showTokenSetup ? (
-                  <div className="p-4 w-[320px] flex flex-col gap-3 animate-pop-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold text-[#1d1d1f] flex items-center gap-2"><Key size={14}/> GitHub Token</span>
-                      <button onClick={() => setShowTokenSetup(false)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">在 GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) 创建，勾选 <b>gist</b> 权限即可。</p>
-                    <input value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="ghp_xxxxxxxxxxxx" className="w-full bg-black/[0.04] px-3 py-2 rounded-[10px] text-[12px] font-mono border border-black/10 focus:border-[#007AFF] focus:bg-white outline-none transition-colors text-black" />
-                    <div className="flex gap-2">
-                      {gistToken && <button onClick={clearToken} className="px-3 py-1.5 text-[12px] font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">清除</button>}
-                      <button onClick={() => saveToken(tokenInput.trim())} disabled={!tokenInput.trim()} className="flex-1 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] disabled:opacity-30 text-white rounded-lg text-[12px] font-semibold transition-all">保存</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-1.5 flex flex-col gap-1">
-                    <div className="flex gap-1">
-                      <button onClick={handleCloudPush} disabled={syncStatus === 'pushing' || syncStatus === 'pulling'} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2 disabled:opacity-40">
-                        {syncStatus === 'pushing' ? <RefreshCw size={14} className="animate-spin"/> : <Cloud size={14}/>} 上传云端
-                      </button>
-                      <button onClick={handleCloudPull} disabled={syncStatus === 'pushing' || syncStatus === 'pulling' || !gistId} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2 disabled:opacity-40">
-                        {syncStatus === 'pulling' ? <RefreshCw size={14} className="animate-spin"/> : <Download size={14}/>} 拉取云端
-                      </button>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={handleExport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Download size={14}/> 导出文件</button>
-                      <button onClick={handleImport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Upload size={14}/> 导入文件</button>
-                    </div>
-                    <div className="flex items-center justify-between px-3 py-1 border-t border-black/5 mt-1">
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                        {syncStatus === 'success' && <><Check size={12} className="text-green-500"/> 同步成功</>}
-                        {syncStatus === 'error' && <><AlertCircle size={12} className="text-red-500"/> 同步失败</>}
-                        {syncStatus === 'idle' && (gistToken ? <><Check size={12} className="text-green-500"/> Token 已配置</> : '未配置云同步')}
-                      </span>
-                      <button onClick={() => { setTokenInput(gistToken); setShowTokenSetup(true); }} className="text-[11px] text-[#007AFF] font-medium hover:underline"><Key size={11} className="inline mr-1"/>设置</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </>
         )}
+
+        <div onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max max-w-[95vw] ${dataOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+          <div className="border border-black/5 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700 overflow-hidden" style={getGlassStyle(currentTheme, { background: 'rgba(255,255,255,0.92)' })}>
+            {showTokenSetup ? (
+              <div className="p-4 w-[320px] max-w-[90vw] flex flex-col gap-3 animate-pop-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-[#1d1d1f] flex items-center gap-2"><Key size={14}/> 云端中枢配置</span>
+                  <button onClick={() => setShowTokenSetup(false)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
+                </div>
+                
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-slate-500">1. GitHub Token (必备)</label>
+                  <input value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="ghp_xxxxxxxxxxxx" className="w-full bg-black/[0.04] px-3 py-2 rounded-[10px] text-[12px] font-mono border border-black/10 focus:border-[#007AFF] focus:bg-white outline-none transition-colors text-black" />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-end">
+                    <label className="text-[11px] font-semibold text-slate-500">2. Gist ID (跨设备拉取需填)</label>
+                    {gistId && (
+                      <button onClick={() => copyToClipboard(gistId)} className="text-[10px] text-[#007AFF] hover:underline bg-[#007AFF]/10 px-1.5 py-0.5 rounded">复制当前 ID</button>
+                    )}
+                  </div>
+                  <input value={gistIdInput} onChange={e => setGistIdInput(e.target.value)} placeholder="留空则在首次上传时自动生成" className="w-full bg-black/[0.04] px-3 py-2 rounded-[10px] text-[12px] font-mono border border-black/10 focus:border-[#007AFF] focus:bg-white outline-none transition-colors text-black" />
+                </div>
+
+                <div className="flex gap-2 mt-1">
+                  {gistToken && <button onClick={clearToken} className="px-3 py-1.5 text-[12px] font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">断开</button>}
+                  <button onClick={() => saveToken(tokenInput.trim(), gistIdInput.trim())} disabled={!tokenInput.trim()} className="flex-1 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] disabled:opacity-30 text-white rounded-lg text-[12px] font-semibold transition-all">保存配置</button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-1.5 flex flex-col gap-1">
+                <div className="flex gap-1">
+                  <button onClick={handleCloudPush} disabled={syncStatus === 'pushing' || syncStatus === 'pulling'} className="flex-1 px-4 py-2 text-[13px] font-medium whitespace-nowrap rounded-lg text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40">
+                    {syncStatus === 'pushing' ? <RefreshCw size={14} className="animate-spin"/> : <Cloud size={14}/>} 上传云端
+                  </button>
+                  <button onClick={handleCloudPull} disabled={syncStatus === 'pushing' || syncStatus === 'pulling' || !gistId} className="flex-1 px-4 py-2 text-[13px] font-medium whitespace-nowrap rounded-lg text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40">
+                    {syncStatus === 'pulling' ? <RefreshCw size={14} className="animate-spin"/> : <Download size={14}/>} 拉取云端
+                  </button>
+                </div>
+                {!isMobile && (
+                  <div className="flex gap-1">
+                    <button onClick={handleExport} className="flex-1 px-4 py-1.5 text-[12px] font-medium whitespace-nowrap rounded-lg text-slate-500 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center justify-center gap-2"><Download size={13}/> 导出文件</button>
+                    <button onClick={handleImport} className="flex-1 px-4 py-1.5 text-[12px] font-medium whitespace-nowrap rounded-lg text-slate-500 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center justify-center gap-2"><Upload size={13}/> 导入文件</button>
+                  </div>
+                )}
+                <div className="flex items-center justify-between px-3 py-1.5 border-t border-black/5 mt-1">
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    {syncStatus === 'success' && <><Check size={12} className="text-green-500"/> 同步成功</>}
+                    {syncStatus === 'error' && <><AlertCircle size={12} className="text-red-500"/> 同步失败</>}
+                    {syncStatus === 'idle' && (gistToken ? <><Check size={12} className="text-green-500"/> Token 已配置</> : '未配置云同步')}
+                  </span>
+                  <button onClick={() => { setTokenInput(gistToken); setGistIdInput(gistId); setShowTokenSetup(true); }} className="text-[11px] text-[#007AFF] font-medium hover:underline"><Key size={11} className="inline mr-1"/>设置密钥</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className={`w-full h-full relative ${isMobile ? 'pt-20' : 'pt-20'}`} onDragOver={(e) => { if (!isMobile && viewMode === 'canvas') e.preventDefault(); }} onDrop={(e) => { if (!isMobile && viewMode === 'canvas') handleCanvasDrop(e); }}>
@@ -610,8 +644,8 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full flex animate-pop-in flex-row">
-      <div className="flex-1 flex flex-col p-4 pr-1 overflow-hidden relative" ref={containerRef}>
+    <div className={`absolute inset-0 w-full h-full flex animate-pop-in flex-row`}>
+      <div className={`flex-1 flex flex-col p-4 pr-1 overflow-hidden relative`} ref={containerRef}>
         {activeLayout.id === '1x1' && renderSlot(0)}
         {activeLayout.id === '1-2-lr' && (
           <div className="flex w-full h-full">
@@ -692,6 +726,7 @@ function EditableTitle({ title, onSave, className = '' }) {
   return <span onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} className={`cursor-default select-none ${className}`} title="双击改名">{title}</span>;
 }
 
+// 📱 & 💻 核心重构：自适应 FolderBody
 function FolderBody({ folder, updateFolder, onLinkClick, isMobile }) {
   const [newLabel, setNewLabel] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -709,6 +744,7 @@ function FolderBody({ folder, updateFolder, onLinkClick, isMobile }) {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden bg-transparent">
+      {/* 动态适配：手机端纵向 flex-col，桌面端横向 flex-wrap */}
       <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar content-start ${isMobile ? 'flex flex-col gap-2.5' : 'flex flex-wrap gap-2.5'}`}>
         {sortedLinks.length === 0 && !isAdding && <div className="w-full h-full flex items-center justify-center text-slate-400 text-[13px] font-medium">无书签数据</div>}
         {sortedLinks.map(link => {
@@ -717,21 +753,27 @@ function FolderBody({ folder, updateFolder, onLinkClick, isMobile }) {
             <div key={link.id} className={`relative group ${isMobile ? 'w-full shrink-0' : 'max-w-full'}`}>
               <a href={link.url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick?.(folder.id, link.id)}
                 className={`inline-flex items-center gap-2 px-3.5 bg-black/[0.04] hover:bg-[#007AFF] hover:text-white border border-black/5 hover:border-transparent text-[13px] font-semibold text-[#1d1d1f] hover:shadow-md transition-all duration-300 ease-apple shadow-sm ${isMobile ? 'w-full justify-between rounded-xl py-3' : 'rounded-full py-1.5'}`}>
+                
+                {/* 左侧：Icon + 文字 */}
                 <div className="flex items-center gap-2 truncate">
                   {favicon && <img src={favicon} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />}
                   <span className={`truncate ${isMobile ? 'max-w-[200px]' : 'max-w-[140px]'}`}>{link.label}</span>
                 </div>
+                
+                {/* 右侧：热度排序计数 + (仅手机端显示的内置删除按钮) */}
                 <div className="flex items-center gap-2 shrink-0">
                   {(link.clickCount || 0) > 0 && <span className="text-[11px] opacity-40 font-normal">{link.clickCount}</span>}
                   {isMobile && (
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) }); }}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white/50 rounded-lg transition-colors shadow-sm bg-black/5">
+                    <button 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) }); }} 
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white/50 rounded-lg transition-colors shadow-sm bg-black/5"
+                    >
                       <Trash2 size={14}/>
                     </button>
                   )}
                 </div>
               </a>
+              {/* 桌面端特供的外部悬浮 X 按钮 */}
               {!isMobile && (
                 <button onClick={() => updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) })} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center scale-50 group-hover:scale-100 transition-all duration-300 shadow-md hover:bg-red-400 z-10">
                   <X size={12} strokeWidth={3}/>
@@ -741,6 +783,7 @@ function FolderBody({ folder, updateFolder, onLinkClick, isMobile }) {
           );
         })}
       </div>
+      
       <div className="p-4 border-t border-black/5 bg-black/[0.03]">
         {isAdding ? (
           <form onSubmit={handleAddLink} className="flex flex-col gap-2.5 animate-pop-in">
