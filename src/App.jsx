@@ -37,6 +37,8 @@ const getFaviconUrl = (url) => {
   catch { return null; }
 };
 
+const MOBILE_THEME_CYCLE = ['light-gray', 'beige', 'light-green'];
+
 export default function App() {
   const [folders, setFolders] = useState(() => {
     const saved = localStorage.getItem('cyberspace_bookmarks_apple');
@@ -70,6 +72,13 @@ export default function App() {
   const [slotAssignments, setSlotAssignments] = useState({});
   const [splitRatios, setSplitRatios] = useState({ '1-2-tb': { y: 50, x: 50 }, '1-2-lr': { x: 50, y: 50 }, '2x2': { x: 50, y: 50 } });
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile(); window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -86,26 +95,38 @@ export default function App() {
   useEffect(() => {
     const h = (e) => { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) { setConsoleOpen(false); setSearchQuery(''); } };
     document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    document.addEventListener('touchstart', h);
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('touchstart', h); };
   }, []);
 
   useEffect(() => { localStorage.setItem('cyberspace_bookmarks_apple', JSON.stringify(folders)); }, [folders]);
   useEffect(() => { localStorage.setItem('cyberspace_theme', themeId); }, [themeId]);
 
   const closeAllDropdowns = () => { setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); setSearchQuery(''); };
-  const handleGlobalEnter = () => { clearTimeout(timers.current.global); setCapsuleExpanded(true); };
-  const handleGlobalLeave = () => { timers.current.global = setTimeout(() => { setCapsuleExpanded(false); closeAllDropdowns(); }, 400); };
-  const handleConsoleEnter = () => { clearTimeout(timers.current.console); setConsoleOpen(true); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); };
-  const handleConsoleLeave = () => { timers.current.console = setTimeout(() => { setConsoleOpen(false); setSearchQuery(''); }, 250); };
-  const handleDynamicEnter = () => { clearTimeout(timers.current.dynamic); setDynamicOpen(true); setConsoleOpen(false); setThemeOpen(false); setDataOpen(false); };
-  const handleDynamicLeave = () => { timers.current.dynamic = setTimeout(() => setDynamicOpen(false), 250); };
-  const handleThemeEnter = () => { clearTimeout(timers.current.theme); setThemeOpen(true); setConsoleOpen(false); setDynamicOpen(false); setDataOpen(false); };
-  const handleThemeLeave = () => { timers.current.theme = setTimeout(() => setThemeOpen(false), 250); };
-  const handleDataEnter = () => { clearTimeout(timers.current.data); setDataOpen(true); setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); };
-  const handleDataLeave = () => { timers.current.data = setTimeout(() => setDataOpen(false), 250); };
+  const handleGlobalEnter = () => { if(isMobile) return; clearTimeout(timers.current.global); setCapsuleExpanded(true); };
+  const handleGlobalLeave = () => { if(isMobile) return; timers.current.global = setTimeout(() => { setCapsuleExpanded(false); closeAllDropdowns(); }, 400); };
+  const handleConsoleEnter = () => { if(isMobile) return; clearTimeout(timers.current.console); setConsoleOpen(true); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); };
+  const handleConsoleLeave = () => { if(isMobile) return; timers.current.console = setTimeout(() => { setConsoleOpen(false); setSearchQuery(''); }, 250); };
+  const handleDynamicEnter = () => { if(isMobile) return; clearTimeout(timers.current.dynamic); setDynamicOpen(true); setConsoleOpen(false); setThemeOpen(false); setDataOpen(false); };
+  const handleDynamicLeave = () => { if(isMobile) return; timers.current.dynamic = setTimeout(() => setDynamicOpen(false), 250); };
+  const handleThemeEnter = () => { if(isMobile) return; clearTimeout(timers.current.theme); setThemeOpen(true); setConsoleOpen(false); setDynamicOpen(false); setDataOpen(false); };
+  const handleThemeLeave = () => { if(isMobile) return; timers.current.theme = setTimeout(() => setThemeOpen(false), 250); };
+  const handleDataEnter = () => { if(isMobile) return; clearTimeout(timers.current.data); setDataOpen(true); setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); };
+  const handleDataLeave = () => { if(isMobile) return; timers.current.data = setTimeout(() => setDataOpen(false), 250); };
+
+  const cycleMobileTheme = () => {
+    setThemeId(prev => {
+      const idx = MOBILE_THEME_CYCLE.indexOf(prev);
+      return MOBILE_THEME_CYCLE[(idx + 1) % MOBILE_THEME_CYCLE.length];
+    });
+  };
 
   const addFolder = () => {
-    const nf = { id: generateId(), title: '新枢纽核心', x: innerWidth / 2 - 160 + (Math.random() * 40 - 20), y: innerHeight / 2 - 200 + (Math.random() * 40 - 20), w: 320, h: 420, z: maxZ + 1, inCanvas: true, gridIdx: folders.length, links: [] };
+    if (isMobile && folders.filter(f => f.inCanvas).length >= 4) {
+      alert('手机端空间有限，最多只能展示 4 个核心文件夹。请先关闭一些文件夹再新建。');
+      return;
+    }
+    const nf = { id: generateId(), title: '新枢纽核心', x: window.innerWidth / 2 - 160 + (Math.random() * 40 - 20), y: window.innerHeight / 2 - 200 + (Math.random() * 40 - 20), w: 320, h: 420, z: maxZ + 1, inCanvas: true, gridIdx: folders.length, links: [] };
     setMaxZ(maxZ + 1); setFolders([...folders, nf]);
   };
   const updateFolder = (id, updates) => setFolders(folders.map(f => f.id === id ? { ...f, ...updates } : f));
@@ -148,9 +169,18 @@ export default function App() {
     e.preventDefault(); const id = e.dataTransfer.getData('console_folder');
     if (id) { setMaxZ(maxZ + 1); updateFolder(id, { inCanvas: true, x: e.clientX - 160, y: e.clientY - 20, z: maxZ + 1 }); }
   };
+
   const handleConsoleDeploy = (folder) => {
-    if (viewMode === 'canvas') { updateFolder(folder.id, { inCanvas: true, z: maxZ + 1 }); setMaxZ(maxZ + 1); }
-    else if (viewMode === 'ios') { setIosPage(Math.floor(folder.gridIdx / 12)); setIosActiveFolder(folder); }
+    if (isMobile) {
+      if (!folder.inCanvas && folders.filter(f => f.inCanvas).length >= 4) {
+        alert('手机端空间有限，最多只能展示 4 个核心文件夹。请先关闭桌面上的部分文件夹。');
+        return;
+      }
+      updateFolder(folder.id, { inCanvas: true });
+    } else {
+      if (viewMode === 'canvas') { updateFolder(folder.id, { inCanvas: true, z: maxZ + 1 }); setMaxZ(maxZ + 1); }
+      else if (viewMode === 'ios') { setIosPage(Math.floor(folder.gridIdx / 12)); setIosActiveFolder(folder); }
+    }
     setConsoleOpen(false); setCapsuleExpanded(false); setSearchQuery('');
   };
 
@@ -163,26 +193,37 @@ export default function App() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden text-[#1d1d1f] selection:bg-[#007AFF]/30 font-apple tracking-tight transition-all duration-[800ms] ease-apple" style={{ background: currentTheme.appBg }}>
-      <div ref={wrapperRef} className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] flex flex-col items-center" onMouseEnter={handleGlobalEnter} onMouseLeave={handleGlobalLeave}>
-        <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center" style={getGlassStyle(currentTheme)}>
-          <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} expanded={capsuleExpanded} onClick={() => { setConsoleOpen(o => !o); setTimeout(() => searchRef.current?.focus(), 100); }} />
-          <div className="w-px h-5 bg-black/10 mx-0.5 hidden sm:block" />
-          <CapsuleBtn icon={<Maximize2 size={18}/>} text="画布" active={viewMode === 'canvas'} onClick={() => setViewMode('canvas')} expanded={capsuleExpanded} />
-          <CapsuleBtn icon={<AppWindow size={18}/>} text="应用" active={viewMode === 'ios'} onClick={() => setViewMode('ios')} expanded={capsuleExpanded} />
-          <CapsuleBtn icon={<LayoutGrid size={18}/>} text="工作区" active={viewMode === 'dynamic'} onClick={() => setViewMode('dynamic')} onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} expanded={capsuleExpanded} />
-          <div className="w-px h-5 bg-black/10 mx-0.5 hidden sm:block" />
-          <CapsuleBtn icon={<Palette size={18}/>} text="外观" active={themeOpen} onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} expanded={capsuleExpanded} />
-          <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} />
-          <div className="w-px h-5 bg-black/10 mx-0.5 hidden sm:block" />
-          <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary onClick={addFolder} expanded={capsuleExpanded} />
-        </div>
+      <div ref={wrapperRef} className={`fixed z-[10000] flex flex-col items-center ${isMobile ? 'top-4 w-[95vw] left-1/2 -translate-x-1/2' : 'top-4 left-1/2 -translate-x-1/2'}`} onMouseEnter={handleGlobalEnter} onMouseLeave={handleGlobalLeave}>
+        
+        {isMobile ? (
+          <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center w-full" style={getGlassStyle(currentTheme)}>
+            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} expanded={true} onClick={() => setConsoleOpen(o => !o)} />
+            <div className="w-px h-5 bg-black/10 mx-1" />
+            <CapsuleBtn icon={<Palette size={18}/>} text="外观" expanded={true} onClick={cycleMobileTheme} />
+            <div className="w-px h-5 bg-black/10 mx-1" />
+            <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary expanded={true} onClick={addFolder} />
+          </div>
+        ) : (
+          <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center" style={getGlassStyle(currentTheme)}>
+            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} expanded={capsuleExpanded} onClick={() => { setConsoleOpen(o => !o); setTimeout(() => searchRef.current?.focus(), 100); }} />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
+            <CapsuleBtn icon={<Maximize2 size={18}/>} text="画布" active={viewMode === 'canvas'} onClick={() => setViewMode('canvas')} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<AppWindow size={18}/>} text="应用" active={viewMode === 'ios'} onClick={() => setViewMode('ios')} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<LayoutGrid size={18}/>} text="工作区" active={viewMode === 'dynamic'} onClick={() => setViewMode('dynamic')} onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} expanded={capsuleExpanded} />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
+            <CapsuleBtn icon={<Palette size={18}/>} text="外观" active={themeOpen} onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} />
+            <div className="w-px h-5 bg-black/10 mx-0.5" />
+            <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary onClick={addFolder} expanded={capsuleExpanded} />
+          </div>
+        )}
 
-        <div onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 w-[340px] transition-all duration-500 ease-apple z-10 ${consoleOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+        <div onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 ${isMobile ? 'w-[95vw]' : 'w-[340px]'} transition-all duration-500 ease-apple z-10 ${consoleOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
           <div className="border border-black/5 rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col max-h-[60vh] transition-all duration-700" style={getGlassStyle(currentTheme)}>
             <div className="px-4 pt-4 pb-2">
               <div className="flex items-center gap-2 px-3 py-2 bg-black/[0.04] rounded-xl border border-black/5 focus-within:border-[#007AFF] focus-within:bg-white transition-colors">
                 <Search size={15} className="text-slate-400 shrink-0" />
-                <input ref={searchRef} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="搜索书签和文件夹… ⌘K" className="flex-1 bg-transparent text-[13px] font-medium outline-none text-[#1d1d1f] placeholder:text-slate-400" />
+                <input ref={searchRef} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={isMobile ? '搜索书签和文件夹…' : '搜索书签和文件夹… ⌘K'} className="flex-1 bg-transparent text-[13px] font-medium outline-none text-[#1d1d1f] placeholder:text-slate-400" />
                 {searchQuery && <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={14} /></button>}
               </div>
             </div>
@@ -193,7 +234,7 @@ export default function App() {
               {filteredFolders.length === 0 && <p className="text-slate-400 text-xs p-6 text-center">{searchQuery ? '无匹配结果' : '暂无文件夹'}</p>}
               <div className="flex flex-col gap-1">
                 {filteredFolders.map(f => (
-                  <div key={f.id} draggable={viewMode === 'canvas'} onDragStart={(e) => e.dataTransfer.setData('console_folder', f.id)} onClick={() => handleConsoleDeploy(f)} className={`w-full flex items-center justify-between p-3 hover:bg-black/5 rounded-xl transition-all duration-300 group ${viewMode === 'canvas' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}>
+                  <div key={f.id} draggable={!isMobile && viewMode === 'canvas'} onDragStart={(e) => e.dataTransfer.setData('console_folder', f.id)} onClick={() => handleConsoleDeploy(f)} className={`w-full flex items-center justify-between p-3 hover:bg-black/5 rounded-xl transition-all duration-300 group ${!isMobile && viewMode === 'canvas' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}>
                     <div className="flex items-center gap-3">
                       <FolderIcon size={18} className="text-[#007AFF] shrink-0" />
                       <div className="flex flex-col">
@@ -204,8 +245,8 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {f.inCanvas && viewMode === 'canvas' && <span className="text-[10px] font-medium px-2 py-0.5 bg-green-500/10 text-green-600 rounded-full">已部署</span>}
-                      <button onClick={(e) => { e.stopPropagation(); deleteFolder(f.id); }} className="p-1.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={14}/></button>
+                      {f.inCanvas && (isMobile || viewMode === 'canvas') && <span className="text-[10px] font-medium px-2 py-0.5 bg-green-500/10 text-green-600 rounded-full">已部署</span>}
+                      <button onClick={(e) => { e.stopPropagation(); deleteFolder(f.id); }} className={`p-1.5 ${isMobile ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all`}><Trash2 size={14}/></button>
                     </div>
                   </div>
                 ))}
@@ -214,34 +255,44 @@ export default function App() {
           </div>
         </div>
 
-        <div onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dynamicOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-          <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700" style={getGlassStyle(currentTheme)}>
-            {DYNAMIC_LAYOUTS.map(layout => (
-              <button key={layout.id} onClick={() => setActiveLayout(layout)} className={`px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full transition-colors duration-300 ${activeLayout.id === layout.id ? 'bg-[#1d1d1f] text-white shadow-md' : 'text-slate-600 hover:text-black hover:bg-black/5'}`}>{layout.name}</button>
-            ))}
-          </div>
-        </div>
+        {!isMobile && (
+          <>
+            <div onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dynamicOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+              <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700" style={getGlassStyle(currentTheme)}>
+                {DYNAMIC_LAYOUTS.map(layout => (
+                  <button key={layout.id} onClick={() => setActiveLayout(layout)} className={`px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full transition-colors duration-300 ${activeLayout.id === layout.id ? 'bg-[#1d1d1f] text-white shadow-md' : 'text-slate-600 hover:text-black hover:bg-black/5'}`}>{layout.name}</button>
+                ))}
+              </div>
+            </div>
 
-        <div onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${themeOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-          <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700 flex-wrap justify-center max-w-[90vw]" style={getGlassStyle(currentTheme)}>
-            {Object.entries(THEMES).map(([id, t]) => (
-              <button key={id} onClick={() => setThemeId(id)} className={`px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full transition-colors duration-300 ${themeId === id ? 'bg-[#1d1d1f] text-white shadow-md' : 'text-slate-600 hover:text-black hover:bg-black/5'}`}>{t.name}</button>
-            ))}
-          </div>
-        </div>
+            <div onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${themeOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+              <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700 flex-wrap justify-center max-w-[90vw]" style={getGlassStyle(currentTheme)}>
+                {Object.entries(THEMES).map(([id, t]) => (
+                  <button key={id} onClick={() => setThemeId(id)} className={`px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full transition-colors duration-300 ${themeId === id ? 'bg-[#1d1d1f] text-white shadow-md' : 'text-slate-600 hover:text-black hover:bg-black/5'}`}>{t.name}</button>
+                ))}
+              </div>
+            </div>
 
-        <div onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dataOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-          <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700" style={getGlassStyle(currentTheme)}>
-            <button onClick={handleExport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Download size={14}/> 导出 JSON</button>
-            <button onClick={handleImport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Upload size={14}/> 导入 JSON</button>
-          </div>
-        </div>
+            <div onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dataOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+              <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700" style={getGlassStyle(currentTheme)}>
+                <button onClick={handleExport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Download size={14}/> 导出 JSON</button>
+                <button onClick={handleImport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Upload size={14}/> 导入 JSON</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="w-full h-full relative pt-20" onDragOver={(e) => { if (viewMode === 'canvas') e.preventDefault(); }} onDrop={(e) => { if (viewMode === 'canvas') handleCanvasDrop(e); }}>
-        {viewMode === 'canvas' && <CanvasView folders={folders.filter(f => f.inCanvas)} updateFolder={updateFolder} bringToFront={bringToFront} theme={currentTheme} onLinkClick={handleLinkClick} />}
-        {viewMode === 'ios' && <IosGridView folders={folders} setFolders={setFolders} updateFolder={updateFolder} iosPage={iosPage} setIosPage={setIosPage} activeFolder={iosActiveFolder} setActiveFolder={setIosActiveFolder} theme={currentTheme} onLinkClick={handleLinkClick} />}
-        {viewMode === 'dynamic' && <DynamicView folders={folders} updateFolder={updateFolder} activeLayout={activeLayout} slotAssignments={slotAssignments} setSlotAssignments={setSlotAssignments} splitRatios={splitRatios} setSplitRatios={setSplitRatios} theme={currentTheme} onLinkClick={handleLinkClick} />}
+      <div className={`w-full h-full relative ${isMobile ? 'pt-20' : 'pt-20'}`} onDragOver={(e) => { if (!isMobile && viewMode === 'canvas') e.preventDefault(); }} onDrop={(e) => { if (!isMobile && viewMode === 'canvas') handleCanvasDrop(e); }}>
+        {isMobile ? (
+          <MobileGridView folders={folders} updateFolder={updateFolder} theme={currentTheme} onLinkClick={handleLinkClick} />
+        ) : (
+          <>
+            {viewMode === 'canvas' && <CanvasView folders={folders.filter(f => f.inCanvas)} updateFolder={updateFolder} bringToFront={bringToFront} theme={currentTheme} onLinkClick={handleLinkClick} />}
+            {viewMode === 'ios' && <IosGridView folders={folders} setFolders={setFolders} updateFolder={updateFolder} iosPage={iosPage} setIosPage={setIosPage} activeFolder={iosActiveFolder} setActiveFolder={setIosActiveFolder} theme={currentTheme} onLinkClick={handleLinkClick} />}
+            {viewMode === 'dynamic' && <DynamicView folders={folders} updateFolder={updateFolder} activeLayout={activeLayout} slotAssignments={slotAssignments} setSlotAssignments={setSlotAssignments} splitRatios={splitRatios} setSplitRatios={setSplitRatios} theme={currentTheme} onLinkClick={handleLinkClick} />}
+          </>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
@@ -255,6 +306,7 @@ export default function App() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(0,0,0,0.3); }
+        @media (max-width: 768px) { .custom-scrollbar::-webkit-scrollbar { display: none; } }
       `}} />
     </div>
   );
@@ -276,6 +328,32 @@ function CapsuleBtn({ active, isPrimary, icon, text, expanded, onClick, onMouseE
   );
 }
 
+function MobileGridView({ folders, updateFolder, theme, onLinkClick }) {
+  const activeFolders = folders.filter(f => f.inCanvas).slice(0, 4);
+
+  return (
+    <div className="w-full h-full overflow-y-auto p-4 pb-12 grid grid-cols-1 sm:grid-cols-2 gap-4 align-top content-start custom-scrollbar">
+      {activeFolders.length === 0 && (
+        <div className="col-span-1 sm:col-span-2 text-center text-slate-500 mt-20 text-sm font-medium">
+          桌面非常干净。<br/><br/>请点击顶部「库」打开核心文件夹，或点击「新建」。
+        </div>
+      )}
+      {activeFolders.map(folder => (
+        <div key={folder.id} className="w-full rounded-[24px] shadow-[0_15px_35px_-10px_rgba(0,0,0,0.15)] border border-black/5 flex flex-col overflow-hidden transition-all duration-500 ease-apple" style={{ ...getGlassStyle(theme), height: '360px' }}>
+          <div className="flex items-center justify-between p-4 bg-black/5 shrink-0 border-b border-black/5">
+            <div className="flex items-center gap-2 font-semibold text-[#1d1d1f] text-[15px]">
+              <FolderIcon size={18} className="text-[#007AFF]"/>
+              <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[15px] font-semibold truncate max-w-[150px]" />
+            </div>
+            <button onClick={() => updateFolder(folder.id, { inCanvas: false })} className="p-2 text-slate-500 hover:text-black hover:bg-black/10 rounded-full transition-colors bg-white/30 shadow-sm"><X size={14} strokeWidth={3} /></button>
+          </div>
+          <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} isMobile={true} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CanvasView({ folders, updateFolder, bringToFront, theme, onLinkClick }) {
   return (
     <div className="absolute inset-0 w-full h-full">
@@ -286,7 +364,6 @@ function CanvasView({ folders, updateFolder, bringToFront, theme, onLinkClick })
 
 function CanvasStickyNote({ folder, updateFolder, bringToFront, theme, onLinkClick }) {
   const [isClosing, setIsClosing] = useState(false);
-  const headerRef = useRef(null);
   const handleClose = () => { setIsClosing(true); setTimeout(() => updateFolder(folder.id, { inCanvas: false }), 120); };
 
   const handleDragStart = (e) => {
@@ -298,29 +375,17 @@ function CanvasStickyNote({ folder, updateFolder, bringToFront, theme, onLinkCli
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
   };
 
-  useEffect(() => {
-    const el = headerRef.current; if (!el) return;
-    let sx, sy, ix, iy;
-    const onS = (e) => { if (['INPUT','BUTTON','A'].includes(e.target.tagName)) return; const t = e.touches[0]; sx = t.clientX; sy = t.clientY; ix = folder.x; iy = folder.y; bringToFront(folder.id); };
-    const onM = (e) => { if (sx == null) return; e.preventDefault(); const t = e.touches[0]; updateFolder(folder.id, { x: ix + t.clientX - sx, y: iy + t.clientY - sy }); };
-    const onE = () => { sx = null; };
-    el.addEventListener('touchstart', onS, { passive: true });
-    el.addEventListener('touchmove', onM, { passive: false });
-    el.addEventListener('touchend', onE);
-    return () => { el.removeEventListener('touchstart', onS); el.removeEventListener('touchmove', onM); el.removeEventListener('touchend', onE); };
-  });
-
   return (
     <div className={`absolute rounded-[24px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-black/5 flex flex-col overflow-hidden group transition-all duration-700 ease-apple ${isClosing ? 'animate-pop-out' : 'animate-pop-in'}`}
       style={{ ...getGlassStyle(theme), left: folder.x, top: folder.y, width: folder.w, height: folder.h, zIndex: folder.z }}
       onMouseDown={() => bringToFront(folder.id)}>
-      <div ref={headerRef} className="flex items-center justify-between p-4 bg-black/5 cursor-move shrink-0 border-b border-black/5" onMouseDown={handleDragStart}>
+      <div className="flex items-center justify-between p-4 bg-black/5 cursor-move shrink-0 border-b border-black/5" onMouseDown={handleDragStart}>
         <div className="flex items-center gap-2 font-semibold text-[#1d1d1f] text-[15px]"><FolderIcon size={18} className="text-[#007AFF]"/> <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[15px] font-semibold" /></div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <button onClick={handleClose} className="p-1.5 text-slate-500 hover:text-black hover:bg-black/10 rounded-lg transition-colors"><Minus size={16} /></button>
         </div>
       </div>
-      <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} />
+      <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} isMobile={false} />
       <div className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize z-50 flex items-end justify-end p-2 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
         onMouseDown={(e) => {
           e.stopPropagation(); bringToFront(folder.id);
@@ -339,11 +404,7 @@ function IosGridView({ folders, setFolders, updateFolder, iosPage, setIosPage, a
   const [draggedId, setDraggedId] = useState(null);
   const [hoveredTargetIdx, setHoveredTargetIdx] = useState(null);
   const [closingFolderId, setClosingFolderId] = useState(null);
-  const [cols, setCols] = useState(4);
-  useEffect(() => {
-    const check = () => setCols(window.innerWidth < 500 ? 2 : window.innerWidth < 768 ? 3 : 4);
-    check(); window.addEventListener('resize', check); return () => window.removeEventListener('resize', check);
-  }, []);
+  const cols = 4;
   const perPage = cols * 3;
 
   const handleDrop = (e, targetIdx) => {
@@ -393,7 +454,7 @@ function IosGridView({ folders, setFolders, updateFolder, iosPage, setIosPage, a
               <span className="font-semibold text-lg flex items-center gap-3 text-[#1d1d1f]"><FolderIcon className="text-[#007AFF]" size={20}/> <EditableTitle title={activeFolder.title} onSave={(t) => updateFolder(activeFolder.id, { title: t })} className="text-lg font-semibold" /></span>
               <button onClick={handleCloseModal} className="p-2 hover:bg-black/5 rounded-full text-slate-500 transition-colors"><X size={18}/></button>
             </div>
-            <FolderBody folder={activeFolder} updateFolder={updateFolder} onLinkClick={onLinkClick} />
+            <FolderBody folder={activeFolder} updateFolder={updateFolder} onLinkClick={onLinkClick} isMobile={false} />
           </div>
         </div>
       )}
@@ -405,12 +466,6 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
   const containerRef = useRef(null);
   const [closingSlot, setClosingSlot] = useState(null);
   const [dockHoverInfo, setDockHoverInfo] = useState(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check(); window.addEventListener('resize', check); return () => window.removeEventListener('resize', check);
-  }, []);
 
   const handleDrop = (e, si) => {
     e.preventDefault(); const fid = e.dataTransfer.getData('folderId');
@@ -440,7 +495,7 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
                 <span className="font-semibold text-[15px] flex items-center gap-2"><FolderIcon size={18} className="text-[#007AFF]"/> <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[15px] font-semibold" /></span>
                 <button onClick={() => handleRemoveSlot(idx)} className="text-slate-500 hover:text-black bg-black/5 hover:bg-black/10 p-1.5 rounded-lg transition-colors"><X size={14}/></button>
               </div>
-              <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} />
+              <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} isMobile={false} />
             </div>
           ) : <span className="text-[11px] font-bold tracking-widest text-slate-400/80 uppercase">空间 {idx + 1}</span>}
         </div>
@@ -449,18 +504,8 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
   };
 
   return (
-    <div className={`absolute inset-0 w-full h-full flex animate-pop-in ${isMobile ? 'flex-col' : 'flex-row'}`}>
-      {isMobile && (
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-black/5 overflow-x-auto shrink-0">
-          <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase shrink-0">Dock</span>
-          {unassigned.map(f => (
-            <div key={f.id} draggable onDragStart={(e) => e.dataTransfer.setData('folderId', f.id)} className="w-10 h-10 flex items-center justify-center cursor-grab shrink-0">
-              <FolderIcon size={26} className="text-[#007AFF]" />
-            </div>
-          ))}
-        </div>
-      )}
-      <div className={`flex-1 flex flex-col ${isMobile ? 'p-2' : 'p-4 pr-1'} overflow-hidden relative`} ref={containerRef}>
+    <div className="absolute inset-0 w-full h-full flex animate-pop-in flex-row">
+      <div className="flex-1 flex flex-col p-4 pr-1 overflow-hidden relative" ref={containerRef}>
         {activeLayout.id === '1x1' && renderSlot(0)}
         {activeLayout.id === '1-2-lr' && (
           <div className="flex w-full h-full">
@@ -500,22 +545,20 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
           </div>
         )}
       </div>
-      {!isMobile && (
-        <div className="w-20 flex flex-col items-center py-4 gap-4 shrink-0 z-10 border-l border-black/5 transition-all duration-700 ease-apple" style={{ ...getGlassStyle(theme), background: 'transparent' }}>
-          <div className="text-[10px] font-black tracking-[0.3em] text-slate-400 uppercase transform rotate-90 my-4">Dock</div>
-          <div className="flex-1 w-full overflow-y-auto custom-scrollbar flex flex-col items-center gap-8 px-2 pt-8 pb-10">
-            {unassigned.map(f => (
-              <div key={f.id} draggable onDragStart={(e) => e.dataTransfer.setData('folderId', f.id)}
-                onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setDockHoverInfo({ folder: f, top: r.top + r.height / 2 }); }}
-                onMouseLeave={() => setDockHoverInfo(null)}
-                className="relative w-10 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-[1.15] transition-transform duration-500 ease-apple">
-                <FolderIcon size={26} className="text-[#007AFF] drop-shadow-[0_4px_8px_rgba(0,122,255,0.3)]" />
-              </div>
-            ))}
-          </div>
+      <div className="w-20 flex flex-col items-center py-4 gap-4 shrink-0 z-10 border-l border-black/5 transition-all duration-700 ease-apple" style={{ ...getGlassStyle(theme), background: 'transparent' }}>
+        <div className="text-[10px] font-black tracking-[0.3em] text-slate-400 uppercase transform rotate-90 my-4">Dock</div>
+        <div className="flex-1 w-full overflow-y-auto custom-scrollbar flex flex-col items-center gap-8 px-2 pt-8 pb-10">
+          {unassigned.map(f => (
+            <div key={f.id} draggable onDragStart={(e) => e.dataTransfer.setData('folderId', f.id)}
+              onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setDockHoverInfo({ folder: f, top: r.top + r.height / 2 }); }}
+              onMouseLeave={() => setDockHoverInfo(null)}
+              className="relative w-10 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-[1.15] transition-transform duration-500 ease-apple">
+              <FolderIcon size={26} className="text-[#007AFF] drop-shadow-[0_4px_8px_rgba(0,122,255,0.3)]" />
+            </div>
+          ))}
         </div>
-      )}
-      {!isMobile && dockHoverInfo && (
+      </div>
+      {dockHoverInfo && (
         <div className="fixed z-[99999] right-[90px] border border-black/5 rounded-[20px] flex items-center p-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.15)] w-[240px] pointer-events-none transition-all duration-700"
           style={{ ...getGlassStyle(theme, { background: 'rgba(255,255,255,0.9)' }), top: dockHoverInfo.top, transform: 'translateY(-50%)' }}>
           <FolderIcon className="w-8 h-8 shrink-0 text-[#007AFF]" />
@@ -537,32 +580,13 @@ function EditableTitle({ title, onSave, className = '' }) {
   useEffect(() => { setValue(title); }, [title]);
   useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
 
-  const commit = () => {
-    const trimmed = value.trim();
-    if (trimmed && trimmed !== title) onSave(trimmed);
-    else setValue(title);
-    setEditing(false);
-  };
+  const commit = () => { const trimmed = value.trim(); if (trimmed && trimmed !== title) onSave(trimmed); else setValue(title); setEditing(false); };
 
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(title); setEditing(false); } }}
-        onClick={e => e.stopPropagation()}
-        onMouseDown={e => e.stopPropagation()}
-        className={`bg-black/5 border border-black/10 focus:border-[#007AFF] rounded-lg px-2 py-0.5 outline-none transition-colors text-[#1d1d1f] ${className}`}
-        style={{ width: Math.max(60, value.length * 14 + 20) + 'px' }}
-      />
-    );
-  }
+  if (editing) return <input ref={inputRef} value={value} onChange={e => setValue(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(title); setEditing(false); } }} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} className={`bg-black/5 border border-black/10 focus:border-[#007AFF] rounded-lg px-2 py-0.5 outline-none transition-colors text-[#1d1d1f] ${className}`} style={{ width: Math.max(60, value.length * 14 + 20) + 'px' }} />;
   return <span onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} className={`cursor-default select-none ${className}`} title="双击改名">{title}</span>;
 }
 
-function FolderBody({ folder, updateFolder, onLinkClick }) {
+function FolderBody({ folder, updateFolder, onLinkClick, isMobile }) {
   const [newLabel, setNewLabel] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -579,21 +603,34 @@ function FolderBody({ folder, updateFolder, onLinkClick }) {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden bg-transparent">
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar flex content-start flex-wrap gap-2.5">
+      <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar content-start ${isMobile ? 'flex flex-col gap-2.5' : 'flex flex-wrap gap-2.5'}`}>
         {sortedLinks.length === 0 && !isAdding && <div className="w-full h-full flex items-center justify-center text-slate-400 text-[13px] font-medium">无书签数据</div>}
         {sortedLinks.map(link => {
           const favicon = getFaviconUrl(link.url);
           return (
-            <div key={link.id} className="relative group max-w-full">
+            <div key={link.id} className={`relative group ${isMobile ? 'w-full shrink-0' : 'max-w-full'}`}>
               <a href={link.url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick?.(folder.id, link.id)}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-black/[0.04] hover:bg-[#007AFF] hover:text-white border border-black/5 hover:border-transparent rounded-full text-[13px] font-semibold text-[#1d1d1f] hover:text-white transition-all duration-500 ease-apple shadow-sm">
-                {favicon && <img src={favicon} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />}
-                <span className="truncate max-w-[140px]">{link.label}</span>
-                {(link.clickCount || 0) > 0 && <span className="text-[10px] opacity-40 font-normal ml-0.5">{link.clickCount}</span>}
+                className={`inline-flex items-center gap-2 px-3.5 bg-black/[0.04] hover:bg-[#007AFF] hover:text-white border border-black/5 hover:border-transparent text-[13px] font-semibold text-[#1d1d1f] hover:shadow-md transition-all duration-300 ease-apple shadow-sm ${isMobile ? 'w-full justify-between rounded-xl py-3' : 'rounded-full py-1.5'}`}>
+                <div className="flex items-center gap-2 truncate">
+                  {favicon && <img src={favicon} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />}
+                  <span className={`truncate ${isMobile ? 'max-w-[200px]' : 'max-w-[140px]'}`}>{link.label}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {(link.clickCount || 0) > 0 && <span className="text-[11px] opacity-40 font-normal">{link.clickCount}</span>}
+                  {isMobile && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) }); }}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white/50 rounded-lg transition-colors shadow-sm bg-black/5">
+                      <Trash2 size={14}/>
+                    </button>
+                  )}
+                </div>
               </a>
-              <button onClick={() => updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) })} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center scale-50 group-hover:scale-100 transition-all duration-300 shadow-md hover:bg-red-400 z-10">
-                <X size={12} strokeWidth={3}/>
-              </button>
+              {!isMobile && (
+                <button onClick={() => updateFolder(folder.id, { links: folder.links.filter(l => l.id !== link.id) })} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center scale-50 group-hover:scale-100 transition-all duration-300 shadow-md hover:bg-red-400 z-10">
+                  <X size={12} strokeWidth={3}/>
+                </button>
+              )}
             </div>
           );
         })}
