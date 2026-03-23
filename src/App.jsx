@@ -315,7 +315,7 @@ function CanvasStickyNote({ folder, updateFolder, bringToFront, theme, onLinkCli
       style={{ ...getGlassStyle(theme), left: folder.x, top: folder.y, width: folder.w, height: folder.h, zIndex: folder.z }}
       onMouseDown={() => bringToFront(folder.id)}>
       <div ref={headerRef} className="flex items-center justify-between p-4 bg-black/5 cursor-move shrink-0 border-b border-black/5" onMouseDown={handleDragStart}>
-        <div className="flex items-center gap-2 font-semibold text-[#1d1d1f] text-[15px]"><FolderIcon size={18} className="text-[#007AFF]"/> {folder.title}</div>
+        <div className="flex items-center gap-2 font-semibold text-[#1d1d1f] text-[15px]"><FolderIcon size={18} className="text-[#007AFF]"/> <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[15px] font-semibold" /></div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <button onClick={handleClose} className="p-1.5 text-slate-500 hover:text-black hover:bg-black/10 rounded-lg transition-colors"><Minus size={16} /></button>
         </div>
@@ -370,7 +370,7 @@ function IosGridView({ folders, setFolders, updateFolder, iosPage, setIosPage, a
                   <div className="w-20 h-20 rounded-[22px] shadow-[0_8px_20px_rgba(0,0,0,0.06)] border border-black/5 flex items-center justify-center group-hover:scale-[1.03] transition-all duration-700 ease-apple" style={getGlassStyle(theme)}>
                     <FolderIcon size={38} className="text-[#007AFF]" />
                   </div>
-                  <span className="text-[13px] font-medium text-[#1d1d1f] text-center line-clamp-2 px-1">{folder.title}</span>
+                  <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[13px] font-medium text-[#1d1d1f] text-center" />
                 </div>
               ) : <div className={`w-20 h-20 rounded-[22px] transition-all duration-500 ease-apple ${isH ? 'border border-[#007AFF]/40 bg-[#007AFF]/5' : 'bg-transparent'}`} />}
             </div>
@@ -390,7 +390,7 @@ function IosGridView({ folders, setFolders, updateFolder, iosPage, setIosPage, a
         <div className="absolute inset-0 z-[10000] flex items-center justify-center bg-black/10 backdrop-blur-md" onClick={handleCloseModal}>
           <div className={`w-full max-w-2xl mx-4 h-[70vh] border border-black/5 rounded-[28px] shadow-[0_30px_60px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden transition-all duration-700 ease-apple ${closingFolderId === activeFolder.id ? 'animate-pop-out' : 'animate-pop-in'}`} onClick={e => e.stopPropagation()} style={getGlassStyle(theme)}>
             <div className="flex items-center justify-between p-5 border-b border-black/5 bg-black/[0.03]">
-              <span className="font-semibold text-lg flex items-center gap-3 text-[#1d1d1f]"><FolderIcon className="text-[#007AFF]" size={20}/> {activeFolder.title}</span>
+              <span className="font-semibold text-lg flex items-center gap-3 text-[#1d1d1f]"><FolderIcon className="text-[#007AFF]" size={20}/> <EditableTitle title={activeFolder.title} onSave={(t) => updateFolder(activeFolder.id, { title: t })} className="text-lg font-semibold" /></span>
               <button onClick={handleCloseModal} className="p-2 hover:bg-black/5 rounded-full text-slate-500 transition-colors"><X size={18}/></button>
             </div>
             <FolderBody folder={activeFolder} updateFolder={updateFolder} onLinkClick={onLinkClick} />
@@ -437,7 +437,7 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
           {folder ? (
             <div className={`w-full h-full flex flex-col ${isClosing ? 'animate-pop-out' : 'animate-pop-in'}`}>
               <div className="p-4 border-b border-black/5 bg-black/[0.03] flex justify-between">
-                <span className="font-semibold text-[15px] flex items-center gap-2"><FolderIcon size={18} className="text-[#007AFF]"/> {folder.title}</span>
+                <span className="font-semibold text-[15px] flex items-center gap-2"><FolderIcon size={18} className="text-[#007AFF]"/> <EditableTitle title={folder.title} onSave={(t) => updateFolder(folder.id, { title: t })} className="text-[15px] font-semibold" /></span>
                 <button onClick={() => handleRemoveSlot(idx)} className="text-slate-500 hover:text-black bg-black/5 hover:bg-black/10 p-1.5 rounded-lg transition-colors"><X size={14}/></button>
               </div>
               <FolderBody folder={folder} updateFolder={updateFolder} onLinkClick={onLinkClick} />
@@ -527,6 +527,39 @@ function DynamicView({ folders, updateFolder, activeLayout, slotAssignments, set
       )}
     </div>
   );
+}
+
+function EditableTitle({ title, onSave, className = '' }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title);
+  const inputRef = useRef(null);
+
+  useEffect(() => { setValue(title); }, [title]);
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
+
+  const commit = () => {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== title) onSave(trimmed);
+    else setValue(title);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setValue(title); setEditing(false); } }}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        className={`bg-black/5 border border-black/10 focus:border-[#007AFF] rounded-lg px-2 py-0.5 outline-none transition-colors text-[#1d1d1f] ${className}`}
+        style={{ width: Math.max(60, value.length * 14 + 20) + 'px' }}
+      />
+    );
+  }
+  return <span onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }} className={`cursor-default select-none ${className}`} title="双击改名">{title}</span>;
 }
 
 function FolderBody({ folder, updateFolder, onLinkClick }) {
