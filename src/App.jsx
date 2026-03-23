@@ -82,17 +82,27 @@ export default function App() {
   const [gistIdInput, setGistIdInput] = useState(''); 
 
   const [isMobile, setIsMobile] = useState(false);
+  const [pinnedMenu, setPinnedMenu] = useState(null); // 新增：记录当前被“固定”的菜单
+  const showTokenSetupRef = useRef(showTokenSetup);
+
+  useEffect(() => { showTokenSetupRef.current = showTokenSetup; }, [showTokenSetup]);
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile(); window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const closeAllDropdowns = () => { 
+    setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); 
+    setSearchQuery(''); setPinnedMenu(null); setShowTokenSetup(false);
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setCapsuleExpanded(true); setConsoleOpen(true);
+        setCapsuleExpanded(true); setConsoleOpen(true); setPinnedMenu('console');
         setDynamicOpen(false); setThemeOpen(false); setDataOpen(false);
         setTimeout(() => searchRef.current?.focus(), 100);
       }
@@ -102,7 +112,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const h = (e) => { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) { setConsoleOpen(false); setSearchQuery(''); } };
+    const h = (e) => { 
+        if (wrapperRef.current && !wrapperRef.current.contains(e.target)) { 
+            closeAllDropdowns();
+        } 
+    };
     document.addEventListener('mousedown', h);
     document.addEventListener('touchstart', h);
     return () => { document.removeEventListener('mousedown', h); document.removeEventListener('touchstart', h); };
@@ -111,17 +125,51 @@ export default function App() {
   useEffect(() => { localStorage.setItem('cyberspace_bookmarks_apple', JSON.stringify(folders)); }, [folders]);
   useEffect(() => { localStorage.setItem('cyberspace_theme', themeId); }, [themeId]);
 
-  const closeAllDropdowns = () => { setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); setSearchQuery(''); };
   const handleGlobalEnter = () => { if(isMobile) return; clearTimeout(timers.current.global); setCapsuleExpanded(true); };
-  const handleGlobalLeave = () => { if(isMobile) return; timers.current.global = setTimeout(() => { setCapsuleExpanded(false); closeAllDropdowns(); }, 400); };
+  const handleGlobalLeave = () => { 
+    if(isMobile) return; 
+    timers.current.global = setTimeout(() => { 
+      // 只要有菜单被固定，或者正在设置Token/搜索，就阻止全局收起
+      if (pinnedMenu || showTokenSetupRef.current || (searchRef.current && searchRef.current === document.activeElement)) return;
+      setCapsuleExpanded(false); closeAllDropdowns(); 
+    }, 400); 
+  };
+
   const handleConsoleEnter = () => { if(isMobile) return; clearTimeout(timers.current.console); setConsoleOpen(true); setDynamicOpen(false); setThemeOpen(false); setDataOpen(false); };
-  const handleConsoleLeave = () => { if(isMobile) return; timers.current.console = setTimeout(() => { setConsoleOpen(false); setSearchQuery(''); }, 250); };
+  const handleConsoleLeave = () => { 
+    if(isMobile) return; 
+    timers.current.console = setTimeout(() => { 
+      if (pinnedMenu === 'console' || (searchRef.current && searchRef.current === document.activeElement)) return;
+      setConsoleOpen(false); setSearchQuery(''); 
+    }, 250); 
+  };
+
   const handleDynamicEnter = () => { if(isMobile) return; clearTimeout(timers.current.dynamic); setDynamicOpen(true); setConsoleOpen(false); setThemeOpen(false); setDataOpen(false); };
-  const handleDynamicLeave = () => { if(isMobile) return; timers.current.dynamic = setTimeout(() => setDynamicOpen(false), 250); };
+  const handleDynamicLeave = () => { 
+    if(isMobile) return; 
+    timers.current.dynamic = setTimeout(() => { 
+      if (pinnedMenu === 'dynamic') return;
+      setDynamicOpen(false); 
+    }, 250); 
+  };
+
   const handleThemeEnter = () => { if(isMobile) return; clearTimeout(timers.current.theme); setThemeOpen(true); setConsoleOpen(false); setDynamicOpen(false); setDataOpen(false); };
-  const handleThemeLeave = () => { if(isMobile) return; timers.current.theme = setTimeout(() => setThemeOpen(false), 250); };
+  const handleThemeLeave = () => { 
+    if(isMobile) return; 
+    timers.current.theme = setTimeout(() => { 
+      if (pinnedMenu === 'theme') return;
+      setThemeOpen(false); 
+    }, 250); 
+  };
+
   const handleDataEnter = () => { if(isMobile) return; clearTimeout(timers.current.data); setDataOpen(true); setConsoleOpen(false); setDynamicOpen(false); setThemeOpen(false); };
-  const handleDataLeave = () => { if(isMobile) return; timers.current.data = setTimeout(() => setDataOpen(false), 250); };
+  const handleDataLeave = () => { 
+    if(isMobile) return; 
+    timers.current.data = setTimeout(() => { 
+      if (pinnedMenu === 'data' || showTokenSetupRef.current) return;
+      setDataOpen(false); 
+    }, 250); 
+  };
 
   const copyToClipboard = async (text) => {
     try {
@@ -282,9 +330,9 @@ export default function App() {
         
         {isMobile ? (
           <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center w-full" style={getGlassStyle(currentTheme)}>
-            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} expanded={true} onClick={() => { setConsoleOpen(o => !o); setDataOpen(false); }} />
+            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} expanded={true} onClick={() => { if(consoleOpen){setConsoleOpen(false);} else {setConsoleOpen(true); setDataOpen(false);} }} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
-            <CapsuleBtn icon={<Cloud size={18}/>} text="云" active={dataOpen} expanded={true} onClick={() => { setDataOpen(o => !o); setConsoleOpen(false); }} />
+            <CapsuleBtn icon={<Cloud size={18}/>} text="云" active={dataOpen} expanded={true} onClick={() => { if(dataOpen){setDataOpen(false); setShowTokenSetup(false);} else {setDataOpen(true); setConsoleOpen(false);} }} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Palette size={18}/>} text="外观" expanded={true} onClick={cycleMobileTheme} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
@@ -292,14 +340,14 @@ export default function App() {
           </div>
         ) : (
           <div className="border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] flex items-center p-1.5 rounded-full transition-all duration-700 ease-apple gap-1.5 relative z-20 flex-wrap justify-center" style={getGlassStyle(currentTheme)}>
-            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen} onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} expanded={capsuleExpanded} onClick={() => { setConsoleOpen(o => !o); setTimeout(() => searchRef.current?.focus(), 100); }} />
+            <CapsuleBtn icon={<Search size={18}/>} text="库" active={consoleOpen || pinnedMenu === 'console'} onMouseEnter={handleConsoleEnter} onMouseLeave={handleConsoleLeave} expanded={capsuleExpanded} onClick={() => { if(pinnedMenu === 'console'){setPinnedMenu(null); setConsoleOpen(false);} else {setPinnedMenu('console'); setConsoleOpen(true); setTimeout(() => searchRef.current?.focus(), 100);} }} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Maximize2 size={18}/>} text="画布" active={viewMode === 'canvas'} onClick={() => setViewMode('canvas')} expanded={capsuleExpanded} />
             <CapsuleBtn icon={<AppWindow size={18}/>} text="应用" active={viewMode === 'ios'} onClick={() => setViewMode('ios')} expanded={capsuleExpanded} />
-            <CapsuleBtn icon={<LayoutGrid size={18}/>} text="工作区" active={viewMode === 'dynamic'} onClick={() => setViewMode('dynamic')} onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<LayoutGrid size={18}/>} text="工作区" active={viewMode === 'dynamic'} onClick={() => { setViewMode('dynamic'); if(pinnedMenu==='dynamic'){setPinnedMenu(null); setDynamicOpen(false);} else {setPinnedMenu('dynamic'); setDynamicOpen(true);} }} onMouseEnter={handleDynamicEnter} onMouseLeave={handleDynamicLeave} expanded={capsuleExpanded} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
-            <CapsuleBtn icon={<Palette size={18}/>} text="外观" active={themeOpen} onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} expanded={capsuleExpanded} />
-            <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} onClick={() => setDataOpen(o => !o)} />
+            <CapsuleBtn icon={<Palette size={18}/>} text="外观" active={themeOpen || pinnedMenu === 'theme'} onClick={() => { if(pinnedMenu==='theme'){setPinnedMenu(null); setThemeOpen(false);} else {setPinnedMenu('theme'); setThemeOpen(true);} }} onMouseEnter={handleThemeEnter} onMouseLeave={handleThemeLeave} expanded={capsuleExpanded} />
+            <CapsuleBtn icon={<Database size={18}/>} text="数据" active={dataOpen || pinnedMenu === 'data'} onClick={() => { if(pinnedMenu==='data'){setPinnedMenu(null); setDataOpen(false); setShowTokenSetup(false);} else {setPinnedMenu('data'); setDataOpen(true);} }} onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} expanded={capsuleExpanded} />
             <div className="w-px h-5 bg-black/10 mx-0.5" />
             <CapsuleBtn icon={<Plus size={18}/>} text="新建" isPrimary onClick={addFolder} expanded={capsuleExpanded} />
           </div>
