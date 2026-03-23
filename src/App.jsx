@@ -3,7 +3,8 @@ import {
   Plus, Trash2, 
   X, LayoutGrid, Maximize2, AppWindow,
   ChevronLeft, ChevronRight, Folder as FolderIcon, 
-  Command, Search, Minus, Palette, Database, Download, Upload
+  Command, Search, Minus, Palette, Database, Download, Upload,
+  Cloud, RefreshCw, Key, Check, AlertCircle
 } from 'lucide-react';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -71,6 +72,13 @@ export default function App() {
   const [activeLayout, setActiveLayout] = useState(DYNAMIC_LAYOUTS[2]);
   const [slotAssignments, setSlotAssignments] = useState({});
   const [splitRatios, setSplitRatios] = useState({ '1-2-tb': { y: 50, x: 50 }, '1-2-lr': { x: 50, y: 50 }, '2x2': { x: 50, y: 50 } });
+
+  // Cloud sync state
+  const [gistToken, setGistToken] = useState(() => localStorage.getItem('cyberspace_gist_token') || '');
+  const [gistId, setGistId] = useState(() => localStorage.getItem('cyberspace_gist_id') || '');
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | pushing | pulling | success | error
+  const [showTokenSetup, setShowTokenSetup] = useState(false);
+  const [tokenInput, setTokenInput] = useState('');
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -163,6 +171,67 @@ export default function App() {
       reader.readAsText(file);
     };
     input.click(); setDataOpen(false); setCapsuleExpanded(false);
+  };
+
+  const saveToken = (token) => {
+    setGistToken(token); localStorage.setItem('cyberspace_gist_token', token);
+    setShowTokenSetup(false); setTokenInput('');
+  };
+  const clearToken = () => {
+    setGistToken(''); setGistId('');
+    localStorage.removeItem('cyberspace_gist_token');
+    localStorage.removeItem('cyberspace_gist_id');
+  };
+
+  const handleCloudPush = async () => {
+    if (!gistToken) { setShowTokenSetup(true); return; }
+    setSyncStatus('pushing');
+    const payload = JSON.stringify({ folders, themeId, slotAssignments, splitRatios }, null, 2);
+    const fileContent = { 'cyberspace-bookmarks.json': { content: payload } };
+    try {
+      let res;
+      if (gistId) {
+        res = await fetch(`https://api.github.com/gists/${gistId}`, {
+          method: 'PATCH', headers: { Authorization: `token ${gistToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: fileContent })
+        });
+      } else {
+        res = await fetch('https://api.github.com/gists', {
+          method: 'POST', headers: { Authorization: `token ${gistToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: 'Cyberspace Bookmarks Sync', public: false, files: fileContent })
+        });
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!gistId) { setGistId(data.id); localStorage.setItem('cyberspace_gist_id', data.id); }
+      setSyncStatus('success'); setTimeout(() => setSyncStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Cloud push failed:', err);
+      setSyncStatus('error'); setTimeout(() => setSyncStatus('idle'), 3000);
+    }
+  };
+
+  const handleCloudPull = async () => {
+    if (!gistToken || !gistId) { setShowTokenSetup(true); return; }
+    setSyncStatus('pulling');
+    try {
+      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: { Authorization: `token ${gistToken}` }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const content = data.files['cyberspace-bookmarks.json']?.content;
+      if (!content) throw new Error('No data found');
+      const d = JSON.parse(content);
+      if (d.folders) setFolders(d.folders.map((f, i) => ({ ...f, gridIdx: f.gridIdx ?? i, links: (f.links || []).map(l => ({ ...l, clickCount: l.clickCount ?? 0 })) })));
+      if (d.themeId && THEMES[d.themeId]) setThemeId(d.themeId);
+      if (d.slotAssignments) setSlotAssignments(d.slotAssignments);
+      if (d.splitRatios) setSplitRatios(d.splitRatios);
+      setSyncStatus('success'); setTimeout(() => setSyncStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Cloud pull failed:', err);
+      setSyncStatus('error'); setTimeout(() => setSyncStatus('idle'), 3000);
+    }
   };
 
   const handleCanvasDrop = (e) => {
@@ -274,9 +343,44 @@ export default function App() {
             </div>
 
             <div onMouseEnter={handleDataEnter} onMouseLeave={handleDataLeave} className={`absolute top-full left-1/2 -translate-x-1/2 pt-3 transition-all duration-500 ease-apple z-10 w-max ${dataOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-              <div className="border border-black/5 p-1.5 rounded-full flex gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700" style={getGlassStyle(currentTheme)}>
-                <button onClick={handleExport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Download size={14}/> 导出 JSON</button>
-                <button onClick={handleImport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Upload size={14}/> 导入 JSON</button>
+              <div className="border border-black/5 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] transition-all duration-700 overflow-hidden" style={getGlassStyle(currentTheme)}>
+                {showTokenSetup ? (
+                  <div className="p-4 w-[320px] flex flex-col gap-3 animate-pop-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-[#1d1d1f] flex items-center gap-2"><Key size={14}/> GitHub Token</span>
+                      <button onClick={() => setShowTokenSetup(false)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">在 GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) 创建，勾选 <b>gist</b> 权限即可。</p>
+                    <input value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="ghp_xxxxxxxxxxxx" className="w-full bg-black/[0.04] px-3 py-2 rounded-[10px] text-[12px] font-mono border border-black/10 focus:border-[#007AFF] focus:bg-white outline-none transition-colors text-black" />
+                    <div className="flex gap-2">
+                      {gistToken && <button onClick={clearToken} className="px-3 py-1.5 text-[12px] font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">清除</button>}
+                      <button onClick={() => saveToken(tokenInput.trim())} disabled={!tokenInput.trim()} className="flex-1 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0066d6] disabled:opacity-30 text-white rounded-lg text-[12px] font-semibold transition-all">保存</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-1.5 flex flex-col gap-1">
+                    <div className="flex gap-1">
+                      <button onClick={handleCloudPush} disabled={syncStatus === 'pushing' || syncStatus === 'pulling'} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2 disabled:opacity-40">
+                        {syncStatus === 'pushing' ? <RefreshCw size={14} className="animate-spin"/> : <Cloud size={14}/>} 上传云端
+                      </button>
+                      <button onClick={handleCloudPull} disabled={syncStatus === 'pushing' || syncStatus === 'pulling' || !gistId} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2 disabled:opacity-40">
+                        {syncStatus === 'pulling' ? <RefreshCw size={14} className="animate-spin"/> : <Download size={14}/>} 拉取云端
+                      </button>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={handleExport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Download size={14}/> 导出文件</button>
+                      <button onClick={handleImport} className="px-4 py-1.5 text-[13px] font-medium whitespace-nowrap rounded-full text-slate-600 hover:text-black hover:bg-black/5 transition-colors duration-300 flex items-center gap-2"><Upload size={14}/> 导入文件</button>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-1 border-t border-black/5 mt-1">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        {syncStatus === 'success' && <><Check size={12} className="text-green-500"/> 同步成功</>}
+                        {syncStatus === 'error' && <><AlertCircle size={12} className="text-red-500"/> 同步失败</>}
+                        {syncStatus === 'idle' && (gistToken ? <><Check size={12} className="text-green-500"/> Token 已配置</> : '未配置云同步')}
+                      </span>
+                      <button onClick={() => { setTokenInput(gistToken); setShowTokenSetup(true); }} className="text-[11px] text-[#007AFF] font-medium hover:underline"><Key size={11} className="inline mr-1"/>设置</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -307,6 +411,8 @@ export default function App() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(0,0,0,0.3); }
         @media (max-width: 768px) { .custom-scrollbar::-webkit-scrollbar { display: none; } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
       `}} />
     </div>
   );
