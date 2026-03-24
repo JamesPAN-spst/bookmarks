@@ -77,12 +77,13 @@ export default function App() {
   const [gistToken, setGistToken] = useState(() => localStorage.getItem('cyberspace_gist_token') || '');
   const [gistId, setGistId] = useState(() => localStorage.getItem('cyberspace_gist_id') || '');
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | pushing | pulling | success | error
+  const [syncErrorMsg, setSyncErrorMsg] = useState(''); // 新增：保存具体的报错信息
   const [showTokenSetup, setShowTokenSetup] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [gistIdInput, setGistIdInput] = useState(''); 
 
   const [isMobile, setIsMobile] = useState(false);
-  const [pinnedMenu, setPinnedMenu] = useState(null); // 新增：记录当前被“固定”的菜单
+  const [pinnedMenu, setPinnedMenu] = useState(null); // 菜单点击固定状态
   const showTokenSetupRef = useRef(showTokenSetup);
 
   useEffect(() => { showTokenSetupRef.current = showTokenSetup; }, [showTokenSetup]);
@@ -129,7 +130,6 @@ export default function App() {
   const handleGlobalLeave = () => { 
     if(isMobile) return; 
     timers.current.global = setTimeout(() => { 
-      // 只要有菜单被固定，或者正在设置Token/搜索，就阻止全局收起
       if (pinnedMenu || showTokenSetupRef.current || (searchRef.current && searchRef.current === document.activeElement)) return;
       setCapsuleExpanded(false); closeAllDropdowns(); 
     }, 400); 
@@ -250,6 +250,7 @@ export default function App() {
   const handleCloudPush = async () => {
     if (!gistToken) { setShowTokenSetup(true); return; }
     setSyncStatus('pushing');
+    setSyncErrorMsg('');
     const payload = JSON.stringify({ folders, themeId, slotAssignments, splitRatios }, null, 2);
     const fileContent = { 'cyberspace-bookmarks.json': { content: payload } };
     try {
@@ -271,13 +272,15 @@ export default function App() {
       setSyncStatus('success'); setTimeout(() => setSyncStatus('idle'), 2000);
     } catch (err) {
       console.error('Cloud push failed:', err);
-      setSyncStatus('error'); setTimeout(() => setSyncStatus('idle'), 3000);
+      setSyncErrorMsg(err.message);
+      setSyncStatus('error'); setTimeout(() => { setSyncStatus('idle'); setSyncErrorMsg(''); }, 5000);
     }
   };
 
   const handleCloudPull = async () => {
     if (!gistToken || !gistId) { setShowTokenSetup(true); return; }
     setSyncStatus('pulling');
+    setSyncErrorMsg('');
     try {
       const res = await fetch(`https://api.github.com/gists/${gistId}`, {
         headers: { Authorization: `token ${gistToken}` }
@@ -294,7 +297,8 @@ export default function App() {
       setSyncStatus('success'); setTimeout(() => setSyncStatus('idle'), 2000);
     } catch (err) {
       console.error('Cloud pull failed:', err);
-      setSyncStatus('error'); setTimeout(() => setSyncStatus('idle'), 3000);
+      setSyncErrorMsg(err.message);
+      setSyncStatus('error'); setTimeout(() => { setSyncStatus('idle'); setSyncErrorMsg(''); }, 5000);
     }
   };
 
@@ -458,7 +462,7 @@ export default function App() {
                 <div className="flex items-center justify-between px-3 py-1.5 border-t border-black/5 mt-1">
                   <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
                     {syncStatus === 'success' && <><Check size={12} className="text-green-500"/> 同步成功</>}
-                    {syncStatus === 'error' && <><AlertCircle size={12} className="text-red-500"/> 同步失败</>}
+                    {syncStatus === 'error' && <><AlertCircle size={12} className="text-red-500"/> <span className="text-red-500">失败: {syncErrorMsg}</span></>}
                     {syncStatus === 'idle' && (gistToken ? <><Check size={12} className="text-green-500"/> Token 已配置</> : '未配置云同步')}
                   </span>
                   <button onClick={() => { setTokenInput(gistToken); setGistIdInput(gistId); setShowTokenSetup(true); }} className="text-[11px] text-[#007AFF] font-medium hover:underline"><Key size={11} className="inline mr-1"/>设置密钥</button>
